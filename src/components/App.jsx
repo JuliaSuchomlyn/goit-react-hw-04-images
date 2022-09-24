@@ -1,4 +1,5 @@
-import React, { Component } from "react";
+import { useState, useEffect } from "react";
+import { useModal } from "hooks/useModal";
 import { Searchbar } from "./Searchbar/Searchbar";
 import { ImageGallery } from "./ImageGallery/ImageGallery";
 import imageApi from "../api/api";
@@ -7,115 +8,77 @@ import { Modal } from "./Modal/Modal";
 import Loader from "./Loader/Loader";
 
 
-export class App extends Component {
-    state = {
-      searchQuery: '',
-      isLoading: false,
-      page: 1,
-      images: [],
-      showModal: false,
-      largeImageURL: null,
-      imgTags: null,
-      error: null,
-      totalHits: null
-    };
+export const App = () => {
+  const [searchQuery, setQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [images, setImages] = useState([]);
+  const [largeImageURL, setlargeImageURL] = useState('');
+  const [imgTags, setImgTags] = useState(null)
+  const [error, setError] = useState(null);
+  const [totalHits, setTotalHits] = useState(null);
+
+  const {showModal, toggle} = useModal()
   
-
-  componentDidUpdate(prevProps, prevState) {
-    if (prevState.searchQuery !== this.state.searchQuery) {
-      this.fetchImages();
-    }
-    // if (this.state.images.length > 12) {
-    //   this.scrollToBottom();
-    // }
-  }
-
-  handleSubmitForm = query => {
-    if (this.state.searchQuery === query) {
+  useEffect(() => {
+    if (!searchQuery && page === 1) {
       return;
     }
-
-    this.setState({
-      searchQuery: query,
-      page: 1,
-      images: [],
-    });
-  };
-  
-  
-  fetchImages = () => {
-    const { searchQuery, page } = this.state;
-
-    this.setState({ isLoading: true });
-
-    imageApi({ searchQuery, page })
+    imageApi({searchQuery, page })
       .then(({ hits, totalHits }) => {
-        this.setState(prevState => ({
-          images: [...prevState.images, ...hits],
-          page: prevState.page + 1,
-          totalHits: totalHits
-        }));
-            // if (this.state.images.length > 12) {
-            //   this.scrollToBottom();
-            // };
-        // console.log( this.state.images.length, this.state.page )
+        setImages(prevState => [...prevState, ...hits]);
+        setTotalHits(totalHits);
+
       })
-      .catch(error => this.setState({ error }))
-      .finally(() => this.setState({ isLoading: false }));
+      .catch(error => {
+        console.log(error);
+        setError(error.message);
+      });
+  }, [searchQuery, page]);
 
+  const handleSubmitForm = query => {
+    if ( searchQuery === query) {
+      return;
+    }
+    setImages([]);
+    setQuery(query);
+    setPage(1);
   };
 
-  scrollToBottom = () => {
-    return window.scrollBy({
-      top: window.innerHeight,  
-      behavior: 'smooth',
-    });
+  const loadMore = () => {
+    setPage(prevState => prevState + 1);
   };
 
-  toggleModal = () => {
-    this.setState(({ showModal }) => ({
-      showModal: !showModal,
-    }));
+  const setImgInfo = ( {largeImageURL, tags }) => {
+    setlargeImageURL(largeImageURL);
+    setImgTags(tags)
   };
-
-  setImgInfo = ({ largeImageURL, tags }) => {
-    this.setState({ largeImageURL, tags });
-  };
-
   
-  
-  render() {
-    const {
-      images,
-      showModal,
-      largeImageURL,
-      imgTags,
-      isLoading,
-      error,
-      totalHits
-    } = this.state;
+  const isNoLoading = () => setIsLoading(true);
+
+
     return (      
     <div className="container">
-        <Searchbar onSubmit={this.handleSubmitForm} isLoading={isLoading}/>
+        <Searchbar onSubmit={handleSubmitForm} isLoading={isLoading}/>
         {error && <p>Whoops, something went wrong.</p>}
         
         <ImageGallery
           images={images}
-          openModal={this.toggleModal}
-          onSetImgInfo={this.setImgInfo}
+          openModal={toggle}
+          onSetImgInfo={setImgInfo}
         />
 
         {isLoading && <Loader /> }
-        {images.length > 0 && !isLoading && totalHits > images.length &&(
-          <Button onLoadMore={this.fetchImages} />
+        {images.length > 0 && isNoLoading && totalHits > images.length &&(
+          <Button onLoadMore={loadMore} />
         )}
         
         {showModal && (
-          <Modal onClose={this.toggleModal}>            
+          <Modal onClose={toggle}>            
             <img src={largeImageURL} alt={imgTags} />
           </Modal>
         )}
     </div>
   );
   }
-};
+
